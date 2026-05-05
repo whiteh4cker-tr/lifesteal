@@ -1,0 +1,167 @@
+package tr.alperendemir.lssmp.configuration;
+
+
+import tr.alperendemir.helix.BukkitHelixProvider;
+import tr.alperendemir.helix.api.Helix;
+import tr.alperendemir.helix.api.config.Configuration;
+import tr.alperendemir.helix.api.logging.HelixLogger;
+import tr.alperendemir.lssmp.configuration.data.eliminations.EliminationConfiguration;
+import tr.alperendemir.lssmp.configuration.data.types.*;
+import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
+
+public class ConfigurationConverter {
+
+    public static void convertOldConfigs(Configuration mainConfiguration, Configuration eliminationConfiguration) {
+        var oldData = new File(((BukkitHelixProvider) Helix.provider()).getDataFolder().getParentFile(), "LifeSteal-Smp-Plugin");
+        var converted = new File(oldData, "converted.mark");
+
+        if (!oldData.isDirectory() || converted.isFile()) {
+            return;
+        }
+
+        try {
+            if(!converted.createNewFile()) {
+                HelixLogger.error("Unable to mark old data as converted! Will not convert old configs.");
+                return;
+            }
+        } catch (IOException exception) {
+            HelixLogger.reportError(exception);
+            HelixLogger.error("Error while creating converted mark file! Aborting conversion.");
+            return;
+        }
+
+        HelixLogger.info("Lifesteal is attempting to convert over some options...");
+        var main = new File(oldData, "config.yml");
+
+        if (main.isFile()) {
+            var conf = new YamlConfiguration();
+            try {
+                conf.load(main);
+            } catch (IOException | InvalidConfigurationException e) {
+                HelixLogger.error("Unable to load lifesteal old main configuration!");
+                HelixLogger.reportError(e);
+            }
+            ConfigurationConverter.convertMain(conf, mainConfiguration);
+        }
+
+        var bans = new File(oldData, "bans.yml");
+        if (bans.isFile()) {
+            var conf = new YamlConfiguration();
+            try {
+                conf.load(bans);
+            } catch (IOException | InvalidConfigurationException e) {
+                HelixLogger.error("Unable to load lifesteal old ban configuration!");
+                HelixLogger.reportError(e);
+            }
+            ConfigurationConverter.convertBans(conf, eliminationConfiguration);
+        }
+
+        HelixLogger.info("Lifesteal has converted it's old config to the latest format!");
+    }
+
+    public static void convertMain(YamlConfiguration oldConfig, Configuration config) {
+        var elimination = oldConfig.getConfigurationSection("elimination");
+        if (elimination == null) return;
+
+        { // Combat
+            var combat = config.child("combat");
+
+            var alwaysDrop = elimination.getBoolean("alwaysDropHearts", false);
+            var playersDrop = elimination.getBoolean("playersDropHearts", true);
+
+            var mode = alwaysDrop
+                    ? PlayerDropHeartsMode.ALWAYS
+                    : playersDrop
+                        ? PlayerDropHeartsMode.PLAYER_KILLS_ONLY
+                        : PlayerDropHeartsMode.MAX_HEARTS_ONLY;
+
+            combat.value("playerDropHeartsMode").value(mode);
+
+            var environmentSteals = elimination.getBoolean("environmentStealsHearts", true);
+
+            var heartLossMode = environmentSteals ? HeartLossMode.ALWAYS : HeartLossMode.PLAYERS_ONLY;
+
+            var loss = combat.child("heartLoss");
+            loss.value("heartLossMode").value(heartLossMode);
+            loss.value("environmentHeartLoss").value(elimination.getDouble("environmentHealthScale", 1.0));
+            loss.value("playerHealthLoss").value(elimination.getDouble("healthScale", 1.0));
+
+            combat.value("totemUseMode").value(elimination.getBoolean("totemWorksInInventory") ? TotemUseMode.ALWAYS : TotemUseMode.IN_HAND_ONLY);
+        }
+
+        { // General
+            var general = config.child("general");
+
+            general.value("defaultHearts").value(elimination.getDouble("defaultHearts", 10.0));
+
+            if (elimination.getBoolean("useMinHealth")) {
+                general.value("minimumHearts").value(elimination.getDouble("minHearts", 0.0));
+            }
+
+            var max = elimination.getDouble("maxHearts", 20.0);
+            var useMax = elimination.getBoolean("useMaxHealth", true);
+
+            general.value("maximumHearts").value(useMax ? max : -1);
+
+            general.value("eliminatePlayers").value(elimination.getBoolean("banAtMinHealth", true));
+        }
+    }
+
+    public static void convertBans(YamlConfiguration oldConfig, Configuration config) {
+        var banTimes = oldConfig.getConfigurationSection("banTimes");
+        if (banTimes == null) return;
+
+        var configs = new ArrayList<EliminationConfiguration>();
+
+        var keys = banTimes.getKeys(false);
+        for (var key : keys) {
+            var section = banTimes.getConfigurationSection(key);
+            if (section == null) continue;
+
+            var kickMessage = section.getString("ban-message", "§cYou have been eliminated!");
+            var notificationMode = section.getBoolean("broadcast-ban", true)
+                    ? EliminationNotificationMode.SEND_TO_EVERYONE
+                    : EliminationNotificationMode.SUPPRESS;
+            var notificationMessage = section.getString("broadcast-ban-message", "§c{{player}} §6has been eliminated!");
+            var permission = section.getString("permission", null);
+            var permanentBan = section.getBoolean("permanentBan", true);
+            var banTime = permanentBan ? -1 : parseOldBanTime(section.getString("time", "24:00:00.0000"));
+
+            var info = new EliminationConfiguration(
+                    kickMessage,
+                    notificationMode,
+                    notificationMessage,
+                    permission,
+                    banTime,
+
+                    ReviveHeartsMode.USE_REVIVE_HEARTS,
+                    10.0,
+
+                    "ban_player"
+            );
+
+            configs.add(info);
+        }
+
+        config.compoundArray("eliminations").values(configs.toArray(EliminationConfiguration[]::new));
+    }
+
+    private static long parseOldBanTime(String old) {
+        var times = old.split("[:.]");
+
+        var hours =        times.length >  1 ? Integer.parseInt(times[0]) : 0;
+        var minutes =      times.length >= 2 ? Integer.parseInt(times[1]) : 0;
+        var seconds =      times.length >= 3 ? Integer.parseInt(times[2]) : 0;
+        var milliseconds = times.length >= 4 ? Integer.parseInt(times[3]) : 0;
+
+        return TimeUnit.HOURS.toMillis(hours) + TimeUnit.MINUTES.toMillis(minutes)
+                + TimeUnit.SECONDS.toMillis(seconds) + milliseconds;
+    }
+
+}

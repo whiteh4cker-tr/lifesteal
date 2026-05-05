@@ -1,0 +1,65 @@
+package tr.alperendemir.lssmp.items;
+
+import tr.alperendemir.helix.api.Helix;
+import tr.alperendemir.helix.api.items.HelixItem;
+import tr.alperendemir.helix.api.items.ItemAction;
+import tr.alperendemir.helix.api.items.callbacks.ItemUseCallback;
+import tr.alperendemir.helix.api.items.callbacks.ItemUseResult;
+import tr.alperendemir.helix.api.items.context.ItemUseContext;
+import tr.alperendemir.helix.api.items.display.ItemDisplayData;
+import tr.alperendemir.helix.api.items.instance.HelixItemInstance;
+import tr.alperendemir.helix.api.items.variables.HelixItemVariables;
+import tr.alperendemir.lssmp.configuration.data.items.custom.ReviveBeaconConfiguration;
+import org.bukkit.inventory.ItemStack;
+
+import static tr.alperendemir.lssmp.Constants.REVIVE_SCREEN_ID;
+
+public class ReviveBeaconItem extends HelixItem {
+
+    private final ReviveBeaconConfiguration configuration;
+
+    public ReviveBeaconItem(ReviveBeaconConfiguration configuration) {
+        this.configuration = configuration;
+
+        this.addCallback(ItemAction.DROP, new ItemUseCallback() {
+            @Override
+            public ItemUseResult onItemUse(ItemUseContext context, HelixItemInstance itemInstance) {
+                context.player().sendMessage("§cYou can't drop a revive beacon!");
+                return ItemUseResult.CANCEL;
+            }
+        });
+
+        this.addCallback(ItemAction.RIGHT_CLICK_GENERAL, new ItemUseCallback<>() {
+            @Override
+            public ItemUseResult onItemUse(ItemUseContext context, HelixItemInstance itemInstance) {
+                var res = Helix.screens().open(context.player(), REVIVE_SCREEN_ID, null);
+                var selection = res.component("selection");
+                assert selection != null;
+
+                var variables = itemInstance.getVariables();
+
+                selection.setProperty("heart_cost", variables.getInt("heart_cost"));
+//                selection.setProperty("max_revives", variables.getInt("max_revives"));
+                selection.setProperty("item_id", configuration.getId());
+
+                if (!res.success()) {
+                    context.player().sendMessage("§cUnable to open the screen! Please contact server admins.");
+                    return ItemUseResult.CANCEL;
+                }
+
+                return ItemUseResult.SUCCEED;
+            }
+        });
+    }
+
+    @Override
+    public void setupItemStack(ItemStack stack, HelixItemVariables variables) {
+//        variables.setInt("max_revives", this.configuration.getMaxRevives());
+        variables.setInt("heart_cost", this.configuration.getHeartCost());
+    }
+
+    @Override
+    public ItemDisplayData defaultDisplayData() {
+        return this.configuration.getDisplayData();
+    }
+}
