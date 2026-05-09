@@ -58,14 +58,14 @@ public record EliminationInfo(OfflinePlayer victim, @Nullable OfflinePlayer kill
 
         var pardonAt = getPardonAt();
 
-        var remainingSeconds = (pardonAt - now) / 1_000;
+        var remainingMillis = pardonAt - now;
 
         var info = Helix.players().getInformation(address); // I know this blocks
 
         var killerName = this.killer == null ? "Environment" : this.killer.getName();
 
         return MinecraftColor.replaceColorCodes('&', this.configuration().playerMessage())
-                .replace("{{time_remaining}}", banTime == Long.MAX_VALUE ? "infinite" : TimeFormatter.formatDuration(remainingSeconds))
+                .replace("{{time_remaining}}", banTime == Long.MAX_VALUE ? "infinite" : TimeFormatter.formatDuration(remainingMillis))
                 .replace("{{revived_at}}", banTime == Long.MAX_VALUE ? "the end of time" : TimeFormatter.formatDate(
                         LocalDateTime.ofInstant(
                                 Instant.ofEpochMilli(

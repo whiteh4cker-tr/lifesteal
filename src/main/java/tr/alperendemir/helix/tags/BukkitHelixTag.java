@@ -18,6 +18,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.*;
@@ -26,6 +27,7 @@ import java.util.function.Consumer;
 
 public class BukkitHelixTag implements HelixTag {
 
+    private final Connection connection;
     private final PreparedStatement addStatement;
     private final PreparedStatement editStatement;
     private final PreparedStatement removeStatement;
@@ -35,34 +37,33 @@ public class BukkitHelixTag implements HelixTag {
     private final Set<UUID> entryView = Collections.unmodifiableSet(this.entries.keySet());
 
     private final Map<UniqueIdentifier, TagListener<?>> listeners = new HashMap<>();
+    private final Object dbLock = new Object();
 
     public BukkitHelixTag(String id) {
         var tagFile = getFile(id);
-
-        var load = tagFile.exists();
 
         var connection = DatabaseUtils.makeFileConnection(tagFile);
         if (connection == null) {
             throw new RuntimeException("Unable to create connection");
         }
 
+        this.connection = connection;
+
         try {
             var createTable = connection.prepareStatement("CREATE TABLE IF NOT EXISTS ids (id_least BIGINT, id_most BIGINT, data BLOB)");
             createTable.execute();
 
-            if (load) {
-                var selectAll = connection.prepareStatement("SELECT * FROM ids");
-                var res = selectAll.executeQuery();
+            var selectAll = connection.prepareStatement("SELECT * FROM ids");
+            var res = selectAll.executeQuery();
 
-                while (res.next()) {
-                    var uuid = new UUID(res.getLong("id_most"), res.getLong("id_least"));
+            while (res.next()) {
+                var uuid = new UUID(res.getLong("id_most"), res.getLong("id_least"));
 
-                    var arr = res.getBlob("data").getBinaryStream();
+                var arr = res.getBlob("data").getBinaryStream();
 
-                    var storage = new BukkitHelixTagStorage();
-                    storage.fromBytes(arr);
-                    this.entries.put(uuid, storage);
-                }
+                var storage = new BukkitHelixTagStorage();
+                storage.fromBytes(arr);
+                this.entries.put(uuid, storage);
             }
 
             this.addStatement = connection.prepareStatement("INSERT INTO ids (id_least, id_most, data) VALUES (?, ?, ?)");
@@ -203,7 +204,7 @@ public class BukkitHelixTag implements HelixTag {
     }
 
     private void edit(UUID uuid) {
-        Helix.scheduler().async(() -> {
+        synchronized (this.dbLock) {
             try {
                 this.editStatement.setLong(1, uuid.getLeastSignificantBits());
                 this.editStatement.setLong(2, uuid.getMostSignificantBits());
@@ -218,14 +219,15 @@ public class BukkitHelixTag implements HelixTag {
 
                 this.editStatement.setBlob(3, bain);
                 this.editStatement.executeUpdate();
+                this.checkpoint();
             } catch (SQLException | IOException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }
     }
 
     private void save(UUID uuid) {
-        Helix.scheduler().async(() -> {
+        synchronized (this.dbLock) {
             try {
                 this.addStatement.setLong(1, uuid.getLeastSignificantBits());
                 this.addStatement.setLong(2, uuid.getMostSignificantBits());
@@ -238,10 +240,11 @@ public class BukkitHelixTag implements HelixTag {
 
                 this.addStatement.setBlob(3, bain);
                 this.addStatement.executeUpdate();
+                this.checkpoint();
             } catch (SQLException | IOException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }
     }
 
     private void delete(UUID uuid) {
@@ -249,15 +252,16 @@ public class BukkitHelixTag implements HelixTag {
         var world = player == null ? null : player.getWorld();
         this.fire(TagBehaviors.REMOVE, new RemoveTagContext(world, uuid));
 
-        Helix.scheduler().async(() -> {
+        synchronized (this.dbLock) {
             try {
                 this.removeStatement.setLong(1, uuid.getLeastSignificantBits());
                 this.removeStatement.setLong(2, uuid.getMostSignificantBits());
                 this.removeStatement.executeUpdate();
+                this.checkpoint();
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }
     }
 
     @Override
@@ -267,13 +271,22 @@ public class BukkitHelixTag implements HelixTag {
 
     @Override
     public void clearAll() {
-        Helix.scheduler().async(() -> {
+        synchronized (this.dbLock) {
             try {
                 this.clearStatement.executeUpdate();
+                this.checkpoint();
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }
+
+        this.entries.clear();
+    }
+
+    private void checkpoint() throws SQLException {
+        try (var statement = this.connection.createStatement()) {
+            statement.execute("CHECKPOINT");
+        }
     }
 
     private record TagListener<T extends HelixTagContext>(TagBehavior<T> behavior, HelixTagHandler<T> handler) {}

@@ -187,14 +187,6 @@ public class BukkitHelixProvider extends JavaPlugin implements HelixProvider {
     }
 
     private void loadPluginsAndRepos() {
-        var repositorySize = this.repositoryManager.getPluginRepositoryCount();
-        var repositorySuffix = repositorySize != 1 ? "ies" : "y";
-        if (shouldLogBootMessages()) {
-            HelixLogger.info("<yellow>Checking %s plugin repositor%s...", repositorySize, repositorySuffix);
-        }
-
-        this.repositoryManager.refreshListings();
-
         var pluginSize = 0;
         String pluginSuffix = "s";
         var files = this.helixPluginLoader.getPluginFolder().listFiles();
@@ -221,9 +213,6 @@ public class BukkitHelixProvider extends JavaPlugin implements HelixProvider {
 
         this.loadAll();
 
-        var newRepoSize = this.repositoryManager.getPluginRepositoryCount();
-        repositorySuffix = newRepoSize != 1 ? "ies" : "y";
-
         var sb = new StringBuilder();
         for (var type : ErrorType.values()) {
             if (type == ErrorType.INTERNAL) continue;
@@ -242,11 +231,9 @@ public class BukkitHelixProvider extends JavaPlugin implements HelixProvider {
         if (shouldLogBootMessages()) {
             HelixLogger.println(
                     sb.isEmpty() ? LoggerLevel.OK : LoggerLevel.WARNING,
-                    "<bold:green>Done, loaded %s plugin%s and %s repositor%s. %s",
+                    "<bold:green>Done, loaded %s plugin%s. %s",
                     pluginSize,
                     pluginSuffix,
-                    newRepoSize,
-                    repositorySuffix,
                     sb
             );
         }

@@ -363,6 +363,8 @@ public class Lifesteal {
         eliminationManager.initializeTagHandling(init.getName().toLowerCase(Locale.ROOT));
         eliminationManager.register(new BanEliminationMode(generalSection), true);
 
+        Helix.tags().get("player_death_grace").clearAll();
+
         var pipeline = HeartPipeline.create()
                 .andThen(new BasicTotemCheck(combatSection))
                 .andThen(new BasicHeartDeny(heartLossSection, generalSection))
