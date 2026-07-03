@@ -13,6 +13,7 @@ Lifesteal is a Spigot/Paper plugin that adds heart-based combat, eliminations, r
 1. Build the plugin (see Build section) or use a prebuilt jar.
 2. Drop the jar into your server's `plugins` folder.
 3. Start the server to generate configuration files.
+4. Configure the plugin with `/lssetup`.
 
 ## Build
 
