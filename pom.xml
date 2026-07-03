@@ -6,7 +6,7 @@
 
   <groupId>tr.alperendemir</groupId>
   <artifactId>lifesteal</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.2</version>
   <packaging>jar</packaging>
 
   <name>lifesteal</name>
@@ -17,7 +17,7 @@
   </properties>
 
   <build>
-    <finalName>${project.name}</finalName>
+    <finalName>${project.name}-${project.version}</finalName>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -33,6 +33,7 @@
         <artifactId>maven-shade-plugin</artifactId>
         <version>3.6.2</version>
           <configuration>
+              <outputFile>${project.build.directory}/${project.name}-${project.version}.jar</outputFile>
               <filters>
                   <filter>
                       <artifact>*:*</artifact>
@@ -87,7 +88,7 @@
       <dependency>
           <groupId>org.spigotmc</groupId>
           <artifactId>spigot-api</artifactId>
-          <version>26.1.2-R0.1-SNAPSHOT</version>
+          <version>26.2-R0.1-SNAPSHOT</version>
           <scope>provided</scope>
       </dependency>
       <dependency>

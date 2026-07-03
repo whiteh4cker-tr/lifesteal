@@ -1,4 +1,4 @@
 name: '${project.name}'
 version: '${project.version}'
 main: tr.alperendemir.lssmp.LifestealInit
-api-version: '26.1'
+api-version: '26.2'
