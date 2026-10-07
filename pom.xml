@@ -6,12 +6,19 @@
 
   <groupId>tr.alperendemir</groupId>
   <artifactId>lifesteal</artifactId>
-  <version>1.0.2</version>
+  <!-- CI-friendly version (Maven's ${revision} convention). Bump the `revision` property below when
+       you start work on a new version. Alpha/dev builds - which is what CI publishes to Modrinth -
+       override it on the command line: mvn -Drevision=1.0.2-a49c579 package produces
+       lifesteal-1.0.2-a49c579.jar, and plugin.yml's ${project.version} carries the same string so
+       /version reports the exact commit a dev jar was built from. A plain `mvn package` still
+       produces the clean lifesteal-1.0.2.jar. -->
+  <version>${revision}</version>
   <packaging>jar</packaging>
 
   <name>lifesteal</name>
 
   <properties>
+    <revision>1.0.3</revision>
     <java.version>25</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
@@ -88,7 +95,7 @@
       <dependency>
           <groupId>org.spigotmc</groupId>
           <artifactId>spigot-api</artifactId>
-          <version>26.2-R0.1-SNAPSHOT</version>
+          <version>26.3-R0.1-SNAPSHOT</version>
           <scope>provided</scope>
       </dependency>
       <dependency>
